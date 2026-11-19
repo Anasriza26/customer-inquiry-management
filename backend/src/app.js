@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { pool } from "./db/pool.js";
+import { sessionMiddleware } from "./config/session.js";
+import authRoutes from "./modules/auth/auth.routes.js";
+import inquiryRoutes from "./modules/inquiries/inquiries.routes.js";
 
 const app = express();
 
@@ -13,6 +16,9 @@ app.use(
     }),
 );
 app.use(express.json({ limit: "1mb" }));
+app.use(sessionMiddleware);
+app.use("/api/inquiries", inquiryRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/api/health", async (req, res) => {
     try {
