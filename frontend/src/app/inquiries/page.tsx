@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, apiRequest } from "@/lib/api";
+import Link from "next/link";
 
 type Inquiry = {
   id: number;
@@ -229,6 +230,12 @@ export default function InquiriesPage() {
                     <p className="border-t border-base-200 pt-3 text-xs text-base-content/50">
                       Updated {new Date(inquiry.updated_at).toLocaleString()}
                     </p>
+                    <Link
+                      className="btn btn-outline btn-sm mt-2 w-full sm:w-auto"
+                      href={`/inquiries/${inquiry.id}`}
+                    >
+                      View inquiry
+                    </Link>
                   </div>
                 </article>
               ))}
