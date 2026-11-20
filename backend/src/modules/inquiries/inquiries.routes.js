@@ -16,6 +16,7 @@ const createInquirySchema = z.object({
 
 const statusSchema = z.object({
     status: z.enum(statuses),
+    expectedStatus: z.enum(statuses),
 });
 
 function validId(value) {
@@ -160,10 +161,26 @@ router.patch("/:id/status", async (req, res) => {
     }
 
     if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid inquiry status." });
+        return res.status(400).json({
+            error: "Provide a valid status and expectedStatus.",
+        });
     }
 
-    const values = [id];
+    const { status: newStatus, expectedStatus } = parsed.data;
+
+    const allowedNextStatuses = {
+        New: ["In Progress"],
+        "In Progress": ["Resolved"],
+        Resolved: ["In Progress"],
+    };
+
+    if (!allowedNextStatuses[expectedStatus].includes(newStatus)) {
+        return res.status(409).json({
+            error: `Cannot change status from ${expectedStatus} to ${newStatus}.`,
+        });
+    }
+
+    const values = [newStatus, id, expectedStatus];
     let ownershipClause = "";
 
     if (req.session.user.role !== "admin") {
@@ -172,45 +189,52 @@ router.patch("/:id/status", async (req, res) => {
     }
 
     try {
-        const current = await pool.query(
-            `SELECT id, status
-       FROM inquiries
-       WHERE id = $1 ${ownershipClause}`,
+        const updated = await pool.query(
+            `UPDATE inquiries
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+         AND status = $3
+         ${ownershipClause}
+       RETURNING id, customer_name, customer_contact, subject,
+                 description, status, created_by, created_at, updated_at`,
             values,
+        );
+
+        if (updated.rowCount) {
+            return res.json({ inquiry: updated.rows[0] });
+        }
+
+        // Update நடக்கவில்லை: அந்த inquiry-ஐ user அணுக முடியுமா என்று பார்க்கிறோம்.
+        const lookupValues = [id];
+        let accessClause = "";
+
+        if (req.session.user.role !== "admin") {
+            lookupValues.push(req.session.user.id);
+            accessClause = `AND created_by = $${lookupValues.length}`;
+        }
+
+        const current = await pool.query(
+            `SELECT id, status, updated_at
+       FROM inquiries
+       WHERE id = $1 ${accessClause}`,
+            lookupValues,
         );
 
         if (!current.rowCount) {
             return res.status(404).json({ error: "Inquiry not found." });
         }
 
-        const allowedNextStatuses = {
-            New: ["In Progress"],
-            "In Progress": ["Resolved"],
-            Resolved: ["In Progress"],
-        };
-
-        const oldStatus = current.rows[0].status;
-        const newStatus = parsed.data.status;
-
-        if (!allowedNextStatuses[oldStatus].includes(newStatus)) {
-            return res.status(409).json({
-                error: `Cannot change status from ${oldStatus} to ${newStatus}.`,
-            });
-        }
-
-        const updated = await pool.query(
-            `UPDATE inquiries
-       SET status = $1, updated_at = NOW()
-       WHERE id = $2
-       RETURNING id, customer_name, customer_contact, subject,
-                 description, status, created_by, created_at, updated_at`,
-            [newStatus, id],
-        );
-
-        return res.json({ inquiry: updated.rows[0] });
+        return res.status(409).json({
+            error: "This inquiry has changed since you loaded it. Refresh and try again.",
+            currentStatus: current.rows[0].status,
+            updatedAt: current.rows[0].updated_at,
+        });
     } catch (error) {
         console.error("Inquiry status update failed:", error.message);
-        return res.status(500).json({ error: "Unable to update inquiry status." });
+
+        return res.status(500).json({
+            error: "Unable to update inquiry status.",
+        });
     }
 });
 
