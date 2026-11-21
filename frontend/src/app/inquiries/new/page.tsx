@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { ApiError, apiRequest } from "@/lib/api";
+import WorkspaceHeader from "@/components/workspace-header";
 
 type CreatedInquiry = {
   id: number;
@@ -73,6 +74,7 @@ export default function NewInquiryPage() {
 
   return (
     <main className="min-h-dvh bg-base-200 px-4 py-6 sm:px-6 sm:py-10">
+      <WorkspaceHeader />
       <div className="mx-auto w-full max-w-3xl">
         <Link className="btn btn-ghost btn-sm -ml-3 mb-5" href="/inquiries">
           ← Back to inquiries

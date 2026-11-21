@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, apiRequest } from "@/lib/api";
 import Link from "next/link";
+import WorkspaceHeader from "@/components/workspace-header";
 
 type Inquiry = {
   id: number;
@@ -106,6 +107,7 @@ export default function InquiriesPage() {
 
   return (
     <main className="min-h-dvh bg-base-200 px-4 py-6 sm:px-6 sm:py-10">
+      <WorkspaceHeader />
       <div className="mx-auto w-full max-w-6xl">
         <header className="mb-6 sm:mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-800">
