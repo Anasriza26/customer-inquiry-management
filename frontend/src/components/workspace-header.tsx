@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ApiError, apiRequest } from "@/lib/api";
 
@@ -16,14 +15,7 @@ type AuthResponse = {
   user: User;
 };
 
-type NavigationItem = {
-  href: string;
-  label: string;
-};
-
 export default function WorkspaceHeader() {
-  const router = useRouter();
-
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
@@ -32,31 +24,33 @@ export default function WorkspaceHeader() {
   useEffect(() => {
     let active = true;
 
-    apiRequest<AuthResponse>("/auth/me")
-      .then((data) => {
+    async function loadSession() {
+      try {
+        const data = await apiRequest<AuthResponse>("/auth/me");
+
         if (active) {
           setUser(data.user);
         }
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError: unknown) {
         if (!active) return;
 
         if (requestError instanceof ApiError && requestError.status === 401) {
           setUser(null);
-          return;
+        } else {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Unable to check your session.",
+          );
         }
-
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to check your session.",
-        );
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setCheckingSession(false);
         }
-      });
+      }
+    }
+
+    void loadSession();
 
     return () => {
       active = false;
@@ -72,30 +66,15 @@ export default function WorkspaceHeader() {
         method: "POST",
       });
 
-      setUser(null);
-      router.replace("/");
-      router.refresh();
+      window.location.replace("/");
     } catch (requestError: unknown) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to sign out. Please try again.",
       );
-    } finally {
       setSigningOut(false);
     }
-  }
-
-  const navigationItems: NavigationItem[] = [
-    { href: "/inquiries", label: "Inquiries" },
-    { href: "/inquiries/new", label: "New inquiry" },
-  ];
-
-  if (user?.role === "admin") {
-    navigationItems.push({
-      href: "/admin/staff",
-      label: "Staff accounts",
-    });
   }
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ApiError, apiRequest } from "@/lib/api";
 
 type User = {
@@ -14,57 +15,76 @@ type AuthResponse = {
   user: User;
 };
 
+type ToastMessage = {
+  type: "error" | "success";
+  message: string;
+};
+
 export default function LoginPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    apiRequest<AuthResponse>("/auth/me")
-      .then((data) => {
+    async function checkSession() {
+      try {
+        await apiRequest<AuthResponse>("/auth/me");
+
         if (active) {
-          setUser(data.user);
+          router.replace("/");
         }
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError: unknown) {
         if (!active) return;
 
-        // A 401 response is expected when there is no active session.
-        if (requestError instanceof ApiError && requestError.status === 401) {
-          return;
+        if (
+          !(requestError instanceof ApiError && requestError.status === 401)
+        ) {
+          setToast({
+            type: "error",
+            message:
+              requestError instanceof Error
+                ? requestError.message
+                : "Unable to check your sign-in session.",
+          });
         }
 
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to check your sign-in session.",
-        );
-      })
-      .finally(() => {
-        if (active) {
-          setCheckingSession(false);
-        }
-      });
+        setCheckingSession(false);
+      }
+    }
+
+    void checkSession();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(null);
+    }, 2500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [toast]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    setToast(null);
     setSubmitting(true);
 
     try {
-      const data = await apiRequest<AuthResponse>("/auth/login", {
+      await apiRequest<AuthResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({
           email: email.trim(),
@@ -72,89 +92,61 @@ export default function LoginPage() {
         }),
       });
 
-      setUser(data.user);
       setPassword("");
+      router.replace("/");
     } catch (requestError: unknown) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Sign-in failed. Please check your details and try again.",
-      );
+      setToast({
+        type: "error",
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : "Sign-in failed. Please check your details and try again.",
+      });
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleLogout() {
-    setError("");
-    setSigningOut(true);
-
-    try {
-      await apiRequest<void>("/auth/logout", {
-        method: "POST",
-      });
-
-      setUser(null);
-      setEmail("");
-      setPassword("");
-      setShowPassword(false);
-    } catch (requestError: unknown) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to sign out. Please try again.",
-      );
-    } finally {
-      setSigningOut(false);
-    }
-  }
+  const toastClass =
+    toast?.type === "success" ? "alert-success" : "alert-error";
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#f4f7f4] text-slate-900">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#071411] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-200/50 blur-3xl sm:h-96 sm:w-96"
+        className="pointer-events-none absolute -left-28 -top-28 h-72 w-72 rounded-full bg-emerald-800/20 blur-3xl sm:h-96 sm:w-96"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -bottom-28 -right-20 h-72 w-72 rounded-full bg-amber-100/70 blur-3xl sm:h-96 sm:w-96"
+        className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-emerald-600/10 blur-3xl sm:h-96 sm:w-96"
       />
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-[0_24px_80px_-32px_rgba(15,70,53,0.28)] lg:min-h-155 lg:grid-cols-2">
+      {toast && (
+        <div className="toast toast-top toast-center z-50 w-[calc(100%-2rem)] max-w-md">
+          <div
+            className={`alert ${toastClass} shadow-lg`}
+            role={toast.type === "error" ? "alert" : "status"}
+            aria-live={toast.type === "error" ? "assertive" : "polite"}
+          >
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="relative mx-auto w-full max-w-5xl">
+        <div className="grid overflow-hidden rounded-3xl border border-white/10 bg-[#0d1d18] shadow-2xl shadow-black/30 lg:min-h-155 lg:grid-cols-2">
           <section className="flex items-center justify-center p-6 sm:p-10 lg:p-12">
             <div className="w-full max-w-md">
               <div className="mb-8 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-800 text-white shadow-lg shadow-emerald-900/15">
-                  <svg
-                    aria-hidden="true"
-                    className="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <path
-                      d="M4 19.5V5.8A2.8 2.8 0 0 1 6.8 3H20v15.2H7.1A3.1 3.1 0 0 0 4 21.3"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M8 7h8M8 10.5h6"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-sm font-bold text-white shadow-lg shadow-emerald-950/40">
+                  CI
                 </div>
 
                 <div>
-                  <p className="text-sm font-bold tracking-wide text-emerald-900">
-                    COFFEE NINJA
+                  <p className="text-sm font-bold tracking-wide text-emerald-100">
+                    CUSTOMER INQUIRIES
                   </p>
-                  <p className="text-xs text-slate-500">
-                    Customer Support Workspace
-                  </p>
+                  <p className="text-xs text-slate-400">Support workspace</p>
                 </div>
               </div>
 
@@ -164,151 +156,71 @@ export default function LoginPage() {
                   role="status"
                   aria-live="polite"
                 >
-                  <span className="loading loading-spinner loading-lg text-emerald-700" />
+                  <span className="loading loading-spinner loading-lg text-emerald-400" />
                   <div>
-                    <h1 className="text-lg font-semibold text-slate-800">
+                    <h1 className="text-lg font-semibold text-slate-100">
                       Checking your session
                     </h1>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-400">
                       Please wait a moment.
                     </p>
                   </div>
                 </div>
-              ) : user ? (
-                <div>
-                  <div className="mb-6">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                      Signed in
-                    </p>
-                    <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-                      Welcome back, {user.name.split(" ")[0]}.
-                    </h1>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Your account is ready. The inquiry workspace will be
-                      connected in the next chapter.
-                    </p>
-                  </div>
-
-                  {error && (
-                    <div
-                      className="alert alert-error mb-5 text-sm"
-                      role="alert"
-                    >
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Account details
-                    </p>
-
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <p className="text-xs text-slate-500">Full name</p>
-                        <p className="mt-1 wrap-break-words font-medium text-slate-900">
-                          {user.name}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-500">Email address</p>
-                        <p className="mt-1 break-all font-medium text-slate-900">
-                          {user.email}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-500">Access role</p>
-                        <span className="badge badge-success mt-1 capitalize">
-                          {user.role}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-outline mt-6 w-full border-slate-300 text-slate-700 hover:border-emerald-800 hover:bg-emerald-800 hover:text-white"
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={signingOut}
-                  >
-                    {signingOut ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm" />
-                        Signing out...
-                      </>
-                    ) : (
-                      "Sign out"
-                    )}
-                  </button>
-                </div>
               ) : (
                 <>
                   <div className="mb-7">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                      Staff portal
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-400">
+                      Staff and Admin
                     </p>
-                    <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                    <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
                       Sign in to your workspace
                     </h1>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      Manage customer inquiries and keep every request moving
+                    <p className="mt-3 text-sm leading-6 text-slate-400">
+                      Manage customer inquiries and help every request move
                       toward resolution.
                     </p>
                   </div>
 
-                  {error && (
-                    <div
-                      className="alert alert-error mb-5 text-sm"
-                      role="alert"
-                    >
-                      <span>{error}</span>
-                    </div>
-                  )}
-
                   <form className="space-y-5" onSubmit={handleSubmit}>
                     <label className="form-control w-full">
                       <span className="label mb-1">
-                        <span className="label-text font-semibold text-slate-700">
+                        <span className="label-text font-semibold text-slate-200">
                           Email address
                         </span>
                       </span>
                       <input
-                        className="input input-bordered h-12 w-full rounded-xl border-slate-200 bg-white text-base outline-none transition focus:border-emerald-700 focus:outline-2 focus:outline-emerald-700/20"
+                        className="input input-bordered h-12 w-full border-white/10 bg-[#091712] text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-2 focus:outline-emerald-500/20"
                         type="email"
                         name="email"
                         autoComplete="username"
                         placeholder="you@company.com"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
-                        aria-label="Email address"
                         required
                       />
                     </label>
 
                     <label className="form-control w-full">
                       <span className="label mb-1">
-                        <span className="label-text font-semibold text-slate-700">
+                        <span className="label-text font-semibold text-slate-200">
                           Password
                         </span>
                       </span>
 
                       <span className="relative block">
                         <input
-                          className="input input-bordered h-12 w-full rounded-xl border-slate-200 bg-white pr-20 text-base outline-none transition focus:border-emerald-700 focus:outline-2 focus:outline-emerald-700/20"
+                          className="input input-bordered h-12 w-full border-white/10 bg-[#091712] pr-20 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-2 focus:outline-emerald-500/20"
                           type={showPassword ? "text" : "password"}
                           name="password"
                           autoComplete="current-password"
                           placeholder="Enter your password"
                           value={password}
                           onChange={(event) => setPassword(event.target.value)}
-                          aria-label="Password"
                           required
                         />
 
                         <button
-                          className="absolute inset-y-0 right-3 my-auto rounded-md px-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-700"
+                          className="absolute inset-y-0 right-3 my-auto rounded-md px-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-950 focus-visible:outline-2 focus-visible:outline-emerald-400"
                           type="button"
                           onClick={() => setShowPassword((visible) => !visible)}
                           aria-label={
@@ -321,7 +233,7 @@ export default function LoginPage() {
                     </label>
 
                     <button
-                      className="btn h-12 min-h-12 w-full rounded-xl border-0 bg-emerald-800 text-base font-semibold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-900"
+                      className="btn h-12 min-h-12 w-full border-0 bg-emerald-700 text-base font-semibold text-white transition hover:bg-emerald-600"
                       type="submit"
                       disabled={submitting}
                     >
@@ -344,22 +256,22 @@ export default function LoginPage() {
             </div>
           </section>
 
-          <aside className="relative hidden overflow-hidden bg-emerald-950 p-10 text-white lg:flex lg:flex-col lg:justify-between lg:p-12">
+          <aside className="relative hidden overflow-hidden border-l border-white/10 bg-[#0a1713] p-10 text-white lg:flex lg:flex-col lg:justify-between lg:p-12">
             <div
               aria-hidden="true"
-              className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/10"
+              className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-emerald-300/10"
             />
             <div
               aria-hidden="true"
-              className="absolute -right-10 -top-10 h-52 w-52 rounded-full border border-white/10"
+              className="absolute -right-10 -top-10 h-52 w-52 rounded-full border border-emerald-300/10"
             />
             <div
               aria-hidden="true"
-              className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-emerald-700/30 blur-3xl"
+              className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-emerald-700/15 blur-3xl"
             />
 
             <div className="relative">
-              <span className="badge border-emerald-300/20 bg-emerald-300/10 text-emerald-100">
+              <span className="badge border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
                 CUSTOMER CARE, MADE CLEAR
               </span>
 
@@ -367,38 +279,38 @@ export default function LoginPage() {
                 Every inquiry deserves a clear next step.
               </h2>
 
-              <p className="mt-5 max-w-md text-base leading-7 text-emerald-100/75">
+              <p className="mt-5 max-w-md text-base leading-7 text-slate-400">
                 Keep customer requests organized, visible, and moving from first
                 contact to resolution.
               </p>
             </div>
 
             <div className="relative space-y-4">
-              <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-300/15 text-amber-200">
+              <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/3 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
                   01
                 </span>
                 <div>
                   <p className="font-semibold">Capture the request</p>
-                  <p className="mt-1 text-sm text-emerald-100/65">
+                  <p className="mt-1 text-sm text-slate-400">
                     Keep the details in one reliable place.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-300/15 text-amber-200">
+              <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/3 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
                   02
                 </span>
                 <div>
                   <p className="font-semibold">Track the progress</p>
-                  <p className="mt-1 text-sm text-emerald-100/65">
+                  <p className="mt-1 text-sm text-slate-400">
                     Know what is new, active, or resolved.
                   </p>
                 </div>
               </div>
 
-              <p className="pt-3 text-xs text-emerald-100/50">
+              <p className="pt-3 text-xs text-slate-500">
                 A focused workspace for staff and administrators.
               </p>
             </div>
