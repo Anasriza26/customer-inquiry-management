@@ -3,14 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import AuthGuard from "@/components/auth-guard";
 import WorkspaceHeader from "@/components/workspace-header";
 import StaffCreateForm from "./staff-create-form";
 import StaffDirectory from "./staff-directory";
-import type { NewStaffInput, Staff, User } from "./staff-types";
-
-type AuthResponse = {
-  user: User;
-};
+import type { NewStaffInput, Staff } from "./staff-types";
 
 type StaffListResponse = {
   staff: Staff[];
@@ -20,11 +17,9 @@ type StaffResponse = {
   staff: Staff;
 };
 
-export default function AdminStaffPage() {
-  const [user, setUser] = useState<User | null>(null);
+function AdminStaffPageContent() {
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [checkingAccess, setCheckingAccess] = useState(true);
-  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [loadingStaff, setLoadingStaff] = useState(true);
   const [creating, setCreating] = useState(false);
   const [savingStaffId, setSavingStaffId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -33,27 +28,15 @@ export default function AdminStaffPage() {
   useEffect(() => {
     let active = true;
 
-    async function loadPage() {
-      setCheckingAccess(true);
+    async function loadStaff() {
+      setLoadingStaff(true);
       setError("");
 
       try {
-        const authData = await apiRequest<AuthResponse>("/auth/me");
-
-        if (!active) return;
-
-        setUser(authData.user);
-
-        if (authData.user.role !== "admin") {
-          return;
-        }
-
-        setLoadingStaff(true);
-
-        const staffData = await apiRequest<StaffListResponse>("/admin/staff");
+        const data = await apiRequest<StaffListResponse>("/admin/staff");
 
         if (active) {
-          setStaff(staffData.staff);
+          setStaff(data.staff);
         }
       } catch (requestError: unknown) {
         if (!active) return;
@@ -65,13 +48,12 @@ export default function AdminStaffPage() {
         );
       } finally {
         if (active) {
-          setCheckingAccess(false);
           setLoadingStaff(false);
         }
       }
     }
 
-    void loadPage();
+    void loadStaff();
 
     return () => {
       active = false;
@@ -185,48 +167,6 @@ export default function AdminStaffPage() {
     }
   }
 
-  if (checkingAccess) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center bg-base-200 p-4">
-        <div className="flex items-center gap-3" role="status">
-          <span className="loading loading-spinner loading-md text-primary" />
-          <span>Checking admin access...</span>
-        </div>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center bg-base-200 p-4">
-        <section className="alert alert-error w-full max-w-lg" role="alert">
-          <span>{error || "Please sign in to continue."}</span>
-          <Link className="link font-semibold" href="/login">
-            Go to sign in
-          </Link>
-        </section>
-      </main>
-    );
-  }
-
-  if (user.role !== "admin") {
-    return (
-      <main className="flex min-h-dvh items-center justify-center bg-base-200 p-4">
-        <section className="card w-full max-w-lg border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body">
-            <h1 className="card-title">Admin access required</h1>
-            <p className="text-base-content/70">
-              Your account cannot manage staff accounts.
-            </p>
-            <Link className="btn btn-primary mt-3" href="/inquiries">
-              Back to inquiries
-            </Link>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-dvh bg-base-200 px-4 py-6 sm:px-6 sm:py-10">
       <WorkspaceHeader />
@@ -287,5 +227,13 @@ export default function AdminStaffPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function AdminStaffPage() {
+  return (
+    <AuthGuard requiredRole="admin">
+      <AdminStaffPageContent />
+    </AuthGuard>
   );
 }
