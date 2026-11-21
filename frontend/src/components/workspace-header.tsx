@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { apiRequest, ApiError } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 
 type User = {
   id: number;
@@ -21,19 +21,7 @@ type NavigationItem = {
   label: string;
 };
 
-function isNavigationItemActive(href: string, pathname: string) {
-  if (href === "/inquiries") {
-    return (
-      pathname === "/inquiries" ||
-      (pathname.startsWith("/inquiries/") && pathname !== "/inquiries/new")
-    );
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export default function WorkspaceHeader() {
-  const pathname = usePathname();
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
@@ -84,7 +72,8 @@ export default function WorkspaceHeader() {
         method: "POST",
       });
 
-      router.replace("/login");
+      setUser(null);
+      router.replace("/");
       router.refresh();
     } catch (requestError: unknown) {
       setError(
@@ -115,8 +104,8 @@ export default function WorkspaceHeader() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             className="flex min-w-0 items-center gap-3"
-            href="/inquiries"
-            aria-label="Customer Inquiry Management home"
+            href="/"
+            aria-label="Customer Inquiry Management dashboard"
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-800 text-sm font-bold text-white">
               CI
@@ -165,30 +154,6 @@ export default function WorkspaceHeader() {
             )}
           </div>
         </div>
-
-        {user && (
-          <nav
-            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
-            aria-label="Main navigation"
-          >
-            {navigationItems.map((item) => {
-              const active = isNavigationItemActive(item.href, pathname);
-
-              return (
-                <Link
-                  key={item.href}
-                  className={`btn btn-sm shrink-0 ${
-                    active ? "btn-primary" : "btn-ghost"
-                  }`}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
 
         {error && (
           <p className="text-sm text-error" role="alert">
