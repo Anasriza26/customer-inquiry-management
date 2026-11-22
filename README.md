@@ -1,51 +1,93 @@
 # Customer Inquiry Management System
 
-A full-stack application for staff to record and track customer inquiries.
+A full-stack web application for recording, tracking, and managing customer inquiries.
 
-## Project structure
+## Features
 
-- `frontend/` — Next.js application using Tailwind CSS and DaisyUI.
-- `backend/` — Node.js and Express API.
-- `backend/migrations/` — PostgreSQL schema migration files.
-- `backend/seeds/` — Development seed data.
-- `docs/DECISIONS.md` — Design decisions and assumptions.
+- Staff and Admin sign-in using session-based authentication.
+- Staff can create inquiries and access only inquiries they created.
+- Admins can view and update all inquiries.
+- Admins can create, update, deactivate, and reactivate staff accounts.
+- Search inquiries by customer name, contact details, or subject.
+- Filter inquiries by status.
+- Update inquiry status using the supported workflow.
+- Responsive interface built for mobile and desktop screens.
+- Protected pages and backend API authorization.
+- Automated backend and frontend tests.
 
-## Roles
+## Roles and access
 
-- **Staff:** Create inquiries and view or update only inquiries they created.
+- **Staff:** Create inquiries and view or update only their own inquiries.
 - **Admin:** View and update all inquiries and manage staff accounts.
-- **Customer:** Does not sign in; customer details are recorded on an inquiry.
+- **Customer:** Does not sign in. Customer details are recorded on an inquiry.
 
-Access rules are enforced by the backend API.
+The frontend hides or redirects users from pages they are not allowed to open. The backend API enforces the actual authentication, role, and inquiry-ownership rules.
 
 ## Technology
 
+### Frontend
+
 - Next.js
-- Node.js and Express
+- React
+- TypeScript
+- Tailwind CSS
+- DaisyUI
+- Vitest
+- React Testing Library
+- jsdom
+
+### Backend
+
+- Node.js
+- Express
 - PostgreSQL
-- Tailwind CSS and DaisyUI
+- `pg`
+- `express-session`
+- `connect-pg-simple`
+- `bcrypt`
+- Zod
+- Node.js built-in test runner
 
-## Database
+## Project structure
 
-Create a PostgreSQL database named `customer_inquiry_db`.
+- `frontend/` - Next.js application.
+- `backend/` - Express API.
+- `backend/migrations/` - PostgreSQL schema migration files.
+- `backend/seeds/` - Development seed data, if used.
+- `backend/src/` - API, authentication, database, and application code.
+- `backend/test/` - Backend automated tests.
+- `frontend/test/` - Frontend automated tests.
+- `docs/DECISIONS.md` - Design decisions and project assumptions.
 
-The initial schema is in:
+## Prerequisites
 
-`backend/migrations/001_create_users_and_inquiries.sql`
+Install the following before setting up the project:
+
+- Node.js and npm.
+- PostgreSQL.
+- Git.
+
+## Database setup
+
+1. Create a PostgreSQL database named `customer_inquiry_db`.
+2. Open that database in pgAdmin.
+3. Open its Query Tool.
+4. Run the migration SQL file:
+
+   `backend/migrations/001_create_users_and_inquiries.sql`
+
+The database user in the backend environment configuration must have permission to connect to the database and use the tables.
 
 ## Environment setup
 
-Use the example files as templates:
+Create local environment files from the example files:
 
-- `backend/.env.example`
-- `frontend/.env.example`
+- Copy `backend/.env.example` to `backend/.env`.
+- Copy `frontend/.env.example` to `frontend/.env.local`.
 
-Create local `.env` files from these examples and enter your own local settings. Do not commit `.env` files or real credentials.
+Set the values in `backend/.env` for your local PostgreSQL connection, session secret, and initial Admin account. The frontend environment file should point to the backend API.
 
-## Run locally
+Example frontend value:
 
-Setup and run commands will be documented here after the frontend and backend applications are initialized.
-
-## Tests
-
-Test commands will be documented here after the test setup is added.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000/api
