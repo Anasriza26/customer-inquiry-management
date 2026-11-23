@@ -14,6 +14,8 @@ const createInquirySchema = z.object({
     description: z.string().trim().min(1).max(5000),
 });
 
+const updateInquirySchema = createInquirySchema;
+
 const statusSchema = z.object({
     status: z.enum(statuses),
     expectedStatus: z.enum(statuses),
@@ -152,6 +154,109 @@ router.get("/:id", async (req, res) => {
     }
 });
 
+router.put("/:id", async (req, res) => {
+    const id = validId(req.params.id);
+
+    if (!id) {
+        return res.status(400).json({ error: "Invalid inquiry ID." });
+    }
+
+    const parsed = updateInquirySchema.safeParse(req.body);
+
+    if (!parsed.success) {
+        return res.status(400).json({
+            error: "Check the required inquiry fields.",
+            details: parsed.error.flatten().fieldErrors,
+        });
+    }
+
+    const {
+        customerName,
+        customerContact,
+        subject,
+        description,
+    } = parsed.data;
+
+    const values = [
+        customerName,
+        customerContact,
+        subject,
+        description,
+        id,
+    ];
+
+    let ownershipClause = "";
+
+    if (req.session.user.role !== "admin") {
+        values.push(req.session.user.id);
+        ownershipClause = `AND created_by = $${values.length}`;
+    }
+
+    try {
+        const result = await pool.query(
+            `UPDATE inquiries
+       SET customer_name = $1,
+           customer_contact = $2,
+           subject = $3,
+           description = $4,
+           updated_at = NOW()
+       WHERE id = $5 ${ownershipClause}
+       RETURNING id, customer_name, customer_contact, subject,
+                 description, status, created_by, created_at, updated_at`,
+            values,
+        );
+
+        if (!result.rowCount) {
+            return res.status(404).json({ error: "Inquiry not found." });
+        }
+
+        return res.json({ inquiry: result.rows[0] });
+    } catch (error) {
+        console.error("Inquiry update failed:", error.message);
+
+        return res.status(500).json({
+            error: "Unable to update inquiry.",
+        });
+    }
+});
+
+router.delete("/:id", async (req, res) => {
+    const id = validId(req.params.id);
+
+    if (!id) {
+        return res.status(400).json({ error: "Invalid inquiry ID." });
+    }
+
+    const values = [id];
+    let ownershipClause = "";
+
+    if (req.session.user.role !== "admin") {
+        values.push(req.session.user.id);
+        ownershipClause = `AND created_by = $${values.length}`;
+    }
+
+    try {
+        const result = await pool.query(
+            `DELETE FROM inquiries
+       WHERE id = $1 ${ownershipClause}
+       RETURNING id`,
+            values,
+        );
+
+        if (!result.rowCount) {
+            return res.status(404).json({ error: "Inquiry not found." });
+        }
+
+        return res.status(204).send();
+    } catch (error) {
+        console.error("Inquiry deletion failed:", error.message);
+
+        return res.status(500).json({
+            error: "Unable to delete inquiry.",
+        });
+    }
+});
+
 router.patch("/:id/status", async (req, res) => {
     const id = validId(req.params.id);
     const parsed = statusSchema.safeParse(req.body);
@@ -204,7 +309,6 @@ router.patch("/:id/status", async (req, res) => {
             return res.json({ inquiry: updated.rows[0] });
         }
 
-        // Update நடக்கவில்லை: அந்த inquiry-ஐ user அணுக முடியுமா என்று பார்க்கிறோம்.
         const lookupValues = [id];
         let accessClause = "";
 
