@@ -2,18 +2,20 @@
 
 ## Product scope
 
-The Customer Inquiry Management System supports a complete inquiry workflow for staff and administrators.
+The Customer Inquiry Management System supports the inquiry workflow for staff and administrators.
 
 Customers do not sign in. Their contact details are recorded with each inquiry.
 
-The first version focuses on inquiry creation, search, filtering, status updates, authentication, authorization, and staff account management. Real-time updates, Zustand, and rate limiting are outside the initial scope.
+The application supports inquiry creation, search, filtering, detail viewing, editing, deletion, status updates, authentication, authorization, and staff account management.
+
+The first version does not include real-time updates, Zustand, or rate limiting.
 
 ## Roles and access
 
 The application has two roles: `staff` and `admin`.
 
-- Staff can create inquiries and view or update only inquiries they created.
-- Admins can view and update all inquiries.
+- Staff can create inquiries and view, update, or delete only inquiries they created.
+- Admins can view, update, or delete all inquiries.
 - Admins can create, edit, deactivate, and reactivate staff accounts.
 - The staff-management API manages staff accounts; Admin account deactivation is not supported by the current API.
 
@@ -21,7 +23,9 @@ The backend API is the source of truth for authorization. Frontend route guards 
 
 Unauthenticated API requests return `401 Unauthorized`. Authenticated users who attempt an Admin-only operation receive `403 Forbidden`.
 
-When a staff member requests an inquiry they do not own, the API returns `404 Not Found` so it does not reveal that another staff member's inquiry exists.
+When a staff member requests an inquiry they do not own, the API returns `404 Not Found` so it does not reveal that another staff member's inquiry exists. The same ownership rule applies to inquiry updates and deletions.
+
+Inquiry deletion is permanent. The application does not use soft deletion or an archive for inquiries. The interface asks for confirmation before sending a delete request.
 
 ## Authentication and sessions
 
@@ -80,7 +84,7 @@ If the same inquiry is submitted more than once, each submission is stored as a 
 
 ## Errors and interface states
 
-The API uses appropriate responses for unauthenticated requests, forbidden actions, invalid input, unsupported status transitions, stale updates, and records that are not available to the current user.
+The API uses appropriate responses for unauthenticated requests, forbidden actions, invalid input, unsupported status transitions, stale status updates, and records that are not available to the current user.
 
 The interface provides loading, empty, validation, success, and error states. Toast notifications are used for relevant feedback and automatically disappear after 2.5 seconds.
 
